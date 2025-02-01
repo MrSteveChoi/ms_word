@@ -12,13 +12,22 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox
 
 from combine_wordfiles_with_spaces import group_docs_by_page, combine_all_docx
+from file_category_csv import add_categories_to_csv
 from divide_questions import split_docx
 
 # exe 파일이 위치한 절대경로 가져오기
 exe_dir = os.path.dirname(sys.executable)
 os.chdir(exe_dir)  # 프로그램 시작 전에 변경
 
-# pyinstaller --onefile --clean --add-binary "C:\Users\CHY\.conda\envs\msword\Lib\site-packages\pandas.libs\msvcp140-0f2ea95580b32bcfc81c235d5751ce78.dll;." main.py
+exe_dir = os.getcwd()
+category_csv_dir = os.path.join(exe_dir, "csv_file/categories.csv")
+
+print(f"category csv dir: {category_csv_dir}")
+
+# pyinstaller --onefile --clean --add-data "C:\users\chy\.conda\envs\msword\lib\site-packages\docxcompose;docxcompose" --add-binary "C:\Users\CHY\.conda\envs\msword\Lib\site-packages\pandas.libs\msvcp140-0f2ea95580b32bcfc81c235d5751ce78.dll;." main.py
+
+# pyinstaller --clean main_my.spec
+
 
 # -------------------------------------------------------------
 # 1) 공통 필터 함수
@@ -60,19 +69,39 @@ def filter_files(dataframe, checkboxes_dict):
 class CategoryDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("카테고리 필터 (동적 생성)")
+        self.setWindowTitle("카테고리 선택 (csv_file 폴더의 categories.csv파일이 존재해야 합니다.)")
         self.setFixedSize(600, 500)
+
+        self.initUI()
         
         # CSV 파일로부터 로드한 DataFrame
         self.df = pd.DataFrame()
         
         # 동적 체크박스를 담을 딕셔너리: {col_name: {value: QCheckBox}}
         self.checkboxes_dict = {}
-        
+
+        ### 임시 경로
+        # csv파일 자동으로 읽기
+        file_path = category_csv_dir # exe경로
+        # file_path =r"D:/YearDreamSchool-D/python_projects/msword_pjt/csv_file/categories.csv" # .py경로
+
+        if file_path:
+            # self.csv_path_label.setText(f"Selected File: {file_path}")
+            try:
+                self.df = pd.read_csv(file_path)
+                
+                # 체크박스 UI 재구성
+                self.create_dynamic_checkboxes()
+                
+            except Exception as e:
+                QMessageBox.warning(self, "경고", f"오류.{e}")
+                # self.csv_path_label.setText(f"Error: {e}")
+        else:
+            QMessageBox.warning(self, "경고", "csv파일이 존재하지 않습니다.")
+            # QMessageBox.information(self, "알림", "병합이 완료되었습니다!")
+
         # 필터링 결과를 담을 변수
         self.filtered_result = []
-        
-        self.initUI()
     
     def initUI(self):
         """
@@ -83,13 +112,13 @@ class CategoryDialog(QDialog):
         self.setLayout(self.layout)
         
         # 1) CSV 파일 선택 버튼
-        self.csv_button = QPushButton("Select CSV File")
-        self.csv_button.clicked.connect(self.load_csv)
-        self.layout.addWidget(self.csv_button, 0, 0, 1, 2)
+        # self.csv_button = QPushButton("Select CSV File")
+        # self.csv_button.clicked.connect(self.load_csv)
+        # self.layout.addWidget(self.csv_button, 0, 0, 1, 2)
         
         # 2) CSV 경로 표시 라벨
-        self.csv_path_label = QLabel("No file selected")
-        self.layout.addWidget(self.csv_path_label, 1, 0, 1, 2)
+        self.csv_path_label = QLabel("원하는 카테고리를 선택해 주세요.")
+        self.layout.addWidget(self.csv_path_label, 0, 0, 1, 2)
         
         # 3) 체크박스들을 스크롤 영역에 담기 위한 준비
         self.scroll_area = QScrollArea()
@@ -102,42 +131,42 @@ class CategoryDialog(QDialog):
         
         self.scroll_area.setWidget(self.checkboxes_container)
         # 스크롤 영역을 전체 레이아웃에 추가 (2행 아래)
-        self.layout.addWidget(self.scroll_area, 2, 0, 1, 2)
+        self.layout.addWidget(self.scroll_area, 1, 0, 1, 2)
         
         # 4) 필터 버튼
         self.filter_button = QPushButton("Filter")
         self.filter_button.clicked.connect(self.apply_filter)
-        self.layout.addWidget(self.filter_button, 3, 0, 1, 2)
+        self.layout.addWidget(self.filter_button, 2, 0, 1, 2)
         
         # 5) 결과 라벨
         self.result_label = QLabel("Filtered Files: ")
-        self.layout.addWidget(self.result_label, 4, 0, 1, 2)
+        self.layout.addWidget(self.result_label, 3, 0, 1, 2)
         
         # 6) 다이얼로그 버튼(확인/취소 등)
         self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.dialog_buttons.accepted.connect(self.accept)   # "확인" 누르면 QDialog.Accepted
         self.dialog_buttons.rejected.connect(self.reject)   # "취소" 누르면 QDialog.Rejected
-        self.layout.addWidget(self.dialog_buttons, 5, 0, 1, 2, alignment=Qt.AlignCenter)
+        self.layout.addWidget(self.dialog_buttons, 4, 0, 1, 2, alignment=Qt.AlignCenter)
         
-    def load_csv(self):
-        """
-        CSV 파일을 선택하고 DataFrame으로 로드한 뒤,
-        'file_name'을 제외한 나머지 컬럼들에 대한 체크박스를 동적으로 생성한다.
-        """
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select a CSV file", "", "CSV Files (*.csv)")
+    # def load_csv(self):
+    #     """
+    #     CSV 파일을 선택하고 DataFrame으로 로드한 뒤,
+    #     'file_name'을 제외한 나머지 컬럼들에 대한 체크박스를 동적으로 생성한다.
+    #     """
+    #     file_path, _ = QFileDialog.getOpenFileName(self, "Select a CSV file", "", "CSV Files (*.csv)")
         
-        if file_path:
-            self.csv_path_label.setText(f"Selected File: {file_path}")
-            try:
-                self.df = pd.read_csv(file_path)
+    #     if file_path:
+    #         self.csv_path_label.setText(f"Selected File: {file_path}")
+    #         try:
+    #             self.df = pd.read_csv(file_path)
                 
-                # 체크박스 UI 재구성
-                self.create_dynamic_checkboxes()
+    #             # 체크박스 UI 재구성
+    #             self.create_dynamic_checkboxes()
                 
-            except Exception as e:
-                self.csv_path_label.setText(f"Error: {e}")
-        else:
-            self.csv_path_label.setText("No file selected")
+    #         except Exception as e:
+    #             self.csv_path_label.setText(f"Error: {e}")
+    #     else:
+    #         self.csv_path_label.setText("No file selected")
     
     def create_dynamic_checkboxes(self):
         """
@@ -160,7 +189,11 @@ class CategoryDialog(QDialog):
         
         # (2) file_name 컬럼 제외한 나머지 컬럼만 처리
         for col_name in self.df.columns:
-            if col_name == 'file_name':
+            if col_name == "file_name":
+                continue
+
+            # 문제 번호 column은 제외
+            if col_name == "q_number":
                 continue
             
             # 이 컬럼에 대한 unique한 값들
@@ -273,9 +306,8 @@ class ProblemSelectDialog(QDialog):
         없으면 비활성(회색) 체크박스로 표시
         """
         # ------------------### 임시로 사용 ###------------------
-        # (변경) word_files 폴더를 resource_path로 잡기
-        # word_files_path = resource_path("word_files")
-        word_files_path = "word_files"
+        word_files_path = os.path.join(exe_dir, "split") # .exe 경로
+        # word_files_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split" # .py 경로
         # ------------------### 임시로 사용 ###------------------
         
         for file_name in self.file_list:
@@ -332,17 +364,17 @@ class ProblemSelectDialog(QDialog):
             return
         
         # ------------------### 임시로 사용 ###------------------
-        # base_path를 resource_path로 획득
-        # base_path = resource_path("word_files")
-        # base_path = "word_files"
-        base_path = "C:/aepython/ms_word/word_files"
+        base_path = os.path.join(exe_dir, "split") # .exe 경로
+        # base_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split" # .py 경로
         
-        # (가정) group_docs_by_page 함수 사용
-        # 실제 구현은 사용자가 가진 함수를 그대로 연결하시면 됩니다.
+        # group_docs_by_page 함수
         files_list = group_docs_by_page(base_path, self.selected_files)
         
-        full_dir = "C:/aepython/ms_word/word_files"
-        combine_all_docx(full_dir, files_list)
+        # group화 된 list를 하나의 file로 병합
+        combine_all_docx(base_path, files_list)
+        
+        # full_dir = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split"
+        # combine_all_docx(full_dir, files_list)
         # ------------------### 임시로 사용 ###------------------
         
         QMessageBox.information(self, "알림", "병합이 완료되었습니다!")
@@ -358,7 +390,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("메인 윈도우")
-        self.setFixedSize(300, 400)
+        self.setFixedSize(300, 300)
 
         print(f"cwd:{os.getcwd()}")
 
@@ -374,7 +406,7 @@ class MainWindow(QMainWindow):
         # (A) 폴더 선택 버튼
         self.select_folder_button = QPushButton("DB 추가", self)
         self.select_folder_button.setGeometry(80, 100, 140, 40) # (윈도우x, y, 버튼x, y)
-        self.select_folder_button.clicked.connect(self.select_folder) # 함수 연결
+        self.select_folder_button.clicked.connect(self.add_db) # 함수 연결
         
         # (A) 카테고리 열기 버튼
         self.category_button = QPushButton("카테고리 CSV", self)
@@ -399,6 +431,8 @@ class MainWindow(QMainWindow):
         word = win32.gencache.EnsureDispatch('Word.Application')
         word.Visible = False
 
+        add_category_file_list = []
+
         if folder_path:  # 사용자가 폴더를 정상적으로 선택했다면
             # 폴더 내 파일 중 .docx 확장자를 가진 파일만 필터링
             self.docx_files = [f for f in os.listdir(folder_path) if f.endswith(".docx")]
@@ -419,17 +453,27 @@ class MainWindow(QMainWindow):
 
                     input_path = Path(folder_path) / file
                     input_path = str(input_path)
-                    print(f"넘겨주기 전 경로:{input_path}")
+                    # print(f"넘겨주기 전 경로:{input_path}")
 
+                    # ----------------### 임시 경로 ###----------------
                     output_path = os.path.join(os.getcwd(), "split")
+                    # output_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split"
+                    # ----------------### 임시 경로 ###----------------
 
-                    split_docx(
+                    result_file_names = split_docx(
                         input_path=input_path, 
                         output_dir=output_path, 
                         word_app=word, 
                         q_a=q_a
                         )
-                QMessageBox.information(None, "안내", "분할이 완료되었습니다..")
+                    
+                    ### categories.csv파일에 분류해서 넣을 파일들의 목록을 저장
+                    add_category_file_list.extend(result_file_names)
+
+                
+                add_categories_to_csv(category_csv_dir, add_category_file_list, exe_dir)
+
+                QMessageBox.information(None, "안내", "분할/카테고리 추가\n완료")
                 return
         
             else:
@@ -439,7 +483,7 @@ class MainWindow(QMainWindow):
         word.Quit()
 
 
-    def select_folder(self):
+    def add_db(self):
         """
         폴더를 선택하고, 해당 폴더 내에 존재하는 모든 .docx 파일명을 가져온다.
         """
@@ -451,14 +495,12 @@ class MainWindow(QMainWindow):
             
             # 리스트가 비어있지 않다면 해당 파일 목록을 표시
             if self.docx_files:
-                print()
-            #     file_list_str = "\n".join(self.docx_files)
-            #     self.result_label.setText(f"선택된 폴더: {folder_path}\n\nDOCX 파일 목록:\n{file_list_str}")
+
+                add_categories_to_csv(category_csv_dir, self.docx_files, exe_dir)
+                QMessageBox.information(None, "안내", "카테고리 추가 완료")
+                
             else:
                 self.result_label.setText(f"선택된 폴더: {folder_path}\n\nDOCX 파일이 없습니다.")
-
-
-
 
         else:
             # self.result_label.setText("폴더 선택이 취소되었습니다.")

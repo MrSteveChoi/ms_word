@@ -218,6 +218,7 @@ def combine_all_docx(full_dir, files_list):
         # 첫 번째 파일
         first_doc_name = current_sub_list[0]
         # doc_temp = Document_compose(os.path.join(full_dir, f"{first_doc_name}.docx"))
+        print(f"디버깅용 / full_dir:{full_dir} | doc_name:{first_doc_name}")
         doc_temp = Document_compose(os.path.join(full_dir, first_doc_name))
         composer.append(doc_temp)
 
@@ -229,5 +230,13 @@ def combine_all_docx(full_dir, files_list):
                 doc_temp = Document_compose(os.path.join(full_dir, file_name))
                 composer.append(doc_temp)
 
+    ### 임시 경로
     # 3) 결과 파일 저장
-    composer.save("outputs/combined_file_gui.docx")
+    
+    folder_path = os.path.join(os.getcwd(), "outputs")  # 상대경로 (현재 작업 디렉토리 기준)
+
+    if not os.path.exists(folder_path):  # 폴더 존재 여부 확인
+        os.makedirs(folder_path)  # 폴더 생성
+    
+    composer.save(os.path.join(os.getcwd(), "outputs/exe_file_output.docx")) # .exe 경로
+    # composer.save(r"D:\YearDreamSchool-D\python_projects\msword_pjt\outputs/final_test.docx") # .py 경로

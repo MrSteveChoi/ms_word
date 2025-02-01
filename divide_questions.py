@@ -25,10 +25,10 @@ def split_docx(input_path, output_dir, word_app, q_a="q"):
                        - "a" => '시작 패턴'만 보고, 다음 '시작 패턴' 직전까지를 한 블록
     """
     # Word 문서 열기
-    print(f"넘겨준 후 경로:{input_path}")
-    print(f"넘겨준 후 경로(repr):{repr(input_path)}")
-    print("os.path.exists:", os.path.exists(input_path))
     doc = word_app.Documents.Open(input_path)
+
+    # 분할이 끝난 파일들의 이름 list
+    result_file_list = []
     
     try:
         paragraphs = doc.Paragraphs
@@ -111,6 +111,9 @@ def split_docx(input_path, output_dir, word_app, q_a="q"):
             elif q_a == "a":
                 new_filename = f"{'_'.join(base_filename[:-2])}_P{block_count:02d}_MS.docx"
 
+            ### result_file_list에 분할된 문제의 filename을 append
+            result_file_list.append(new_filename)
+
             save_path = os.path.join(output_dir, new_filename)
             print(f"save path : {save_path}")
             new_doc.SaveAs2(save_path, FileFormat=16)  # 16 = wdFormatXMLDocument(.docx)
@@ -121,4 +124,7 @@ def split_docx(input_path, output_dir, word_app, q_a="q"):
         print(f"==> [{os.path.basename(input_path)}] 총 {block_count}개로 분할 완료. (모드='{q_a}')\n")
     
     finally:
+        ### 결과 확인
+        print(f"분할된 문제 list : {result_file_list}")
         doc.Close(False)
+        return result_file_list
