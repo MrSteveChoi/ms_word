@@ -10,9 +10,7 @@ def add_categories_to_csv(category_csv_path, file_list, exe_dir):
     # 1A : 객관식 
     # 1B : data 해석 문제 
     # 2 : 주관식
-    # question_type = {"1A", "1B", "2"}
-    # question_type_set = {"A1", "B1", "2"}
-    question_type_set = {"1A", "1B", "2"}
+    question_type_set = {"1A", "1B", "2", "A1", "B1"}
 
     # SL -> 레벨 나눠놓은거 
     # SL : standard level 탐구로 치면 사탐1 과탐1 정도 
@@ -21,7 +19,6 @@ def add_categories_to_csv(category_csv_path, file_list, exe_dir):
 
     # TZ0 -> Timezone 
     # time zone 이라고 전세계가 시험보는거라 시차에 따라서 
-    # TZ0 TZ1 TZ2 이렇게 나눠져
     time_zone_set = {"TZ0", "TZ1", "TZ2"}
 
     # 과목
@@ -35,11 +32,9 @@ def add_categories_to_csv(category_csv_path, file_list, exe_dir):
     if os.path.exists(category_csv_path):
         print("csv파일 존재함.")
         df = pd.read_csv(category_csv_path)
-        df_already_exist = True
     else:
         print("csv파일 없음.")
         df = pd.DataFrame(columns=["file_name", "subject", "q_number", "q_type", "q_level", "time_zone"])
-        df_already_exist = False
 
     df_file_list = set(df["file_name"])
 
@@ -52,6 +47,10 @@ def add_categories_to_csv(category_csv_path, file_list, exe_dir):
         full_file_name = file
 
         split_file_name_os = os.path.splitext(file)[0].split("_")
+
+        ### 정답파일은 넘어가기
+        if split_file_name_os[-1] == "MS":
+            continue
 
         # 기본값을 설정하여 변수 미할당 오류 방지
         question_type = None

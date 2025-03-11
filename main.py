@@ -9,9 +9,10 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QMessageBox, QLineEdit
 
-from combine_wordfiles_with_spaces import group_docs_by_page, combine_all_docx
+from combine_wordfiles_with_spaces import group_docs_by_page, combine_all_docx, combine_all_docx_one_by_one, combine_all_answer_docx, combine_all_docx_seamless
 from file_category_csv import add_categories_to_csv
 from divide_questions import split_docx
 
@@ -20,14 +21,18 @@ exe_dir = os.path.dirname(sys.executable)
 os.chdir(exe_dir)  # 프로그램 시작 전에 변경
 
 exe_dir = os.getcwd()
+split_dir = os.path.join(exe_dir, "split")
 category_csv_dir = os.path.join(exe_dir, "csv_file/categories.csv")
 
-print(f"category csv dir: {category_csv_dir}")
+# === 사용자 환경 설정 ===
+WORK_DIR = os.getcwd()                                     # 현재 작업 디렉터리
+# WORD_FILES_DIR = os.path.join(WORK_DIR, "word_files")      # 분할할 .docx 파일(문제/정답)이 있는 폴더
+WORD_FILES_DIR = os.path.join(WORK_DIR, "word_files/test_word")      # 분할할 .docx 파일(문제/정답)이 있는 폴더
+OUTPUT_DIR     = os.path.join(WORK_DIR, "split")         # 분할된 파일을 저장할 폴더
 
 # pyinstaller --onefile --clean --add-data "C:\users\chy\.conda\envs\msword\lib\site-packages\docxcompose;docxcompose" --add-binary "C:\Users\CHY\.conda\envs\msword\Lib\site-packages\pandas.libs\msvcp140-0f2ea95580b32bcfc81c235d5751ce78.dll;." main.py
 
 # pyinstaller --clean main_my.spec
-
 
 # -------------------------------------------------------------
 # 1) 공통 필터 함수
@@ -94,7 +99,7 @@ class CategoryDialog(QDialog):
                 self.create_dynamic_checkboxes()
                 
             except Exception as e:
-                QMessageBox.warning(self, "경고", f"오류.{e}")
+                QMessageBox.warning(self, "경고", f"csv파일이 존재하지 않습니다.\n올바른 경로에 csv파일을 위치해 주세요.")
                 # self.csv_path_label.setText(f"Error: {e}")
         else:
             QMessageBox.warning(self, "경고", "csv파일이 존재하지 않습니다.")
@@ -256,12 +261,13 @@ class ProblemSelectDialog(QDialog):
         self.setLayout(layout)
         
         # 안내 라벨
-        info_label = QLabel("아래 체크박스에서 문제(파일)를 선택한 뒤 병합을 진행하세요.")
+        info_label = QLabel("문제파일을 선택 후 병합")
         layout.addWidget(info_label, 0, 0, 1, 2)
-        
+
         # 스크롤 영역
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setMinimumWidth(380)
         
         container = QWidget()
         self.vbox = QVBoxLayout()
@@ -273,32 +279,72 @@ class ProblemSelectDialog(QDialog):
         # word_files 폴더 내 존재 여부 확인 후 체크박스 생성
         self.create_file_checkboxes()
 
-
         ### ✅ "모두 선택" & "모두 선택 해제" 버튼 추가
+        select_button_layout = QHBoxLayout()
+        
         self.select_all_button = QPushButton("모두 선택")
         self.select_all_button.clicked.connect(self.select_all_files)
 
         self.deselect_all_button = QPushButton("모두 선택 해제")
         self.deselect_all_button.clicked.connect(self.deselect_all_files)
 
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.select_all_button)
-        button_layout.addWidget(self.deselect_all_button)
-        
-        layout.addLayout(button_layout, 2, 0, 1, 2)  # 버튼 추가
+        select_button_layout.addWidget(self.select_all_button)
+        select_button_layout.addWidget(self.deselect_all_button)
+
+        layout.addLayout(select_button_layout, 2, 0, 1, 2)  # ✅ 한 줄에 배치
         ###
 
+        # ✅ "결과물 이름" 입력 필드 추가
+        output_name_layout = QHBoxLayout()
 
-        # (추가) 병합 버튼
+        result_name_label = QLabel("결과물 이름:")
+        self.result_name_input = QLineEdit()
+        self.result_name_input.setText("output")  # 기본값 설정 ✅
+
+        output_name_layout.addWidget(result_name_label)  # 라벨 추가
+        output_name_layout.addWidget(self.result_name_input)  # 입력 필드 추가
+
+        layout.addLayout(output_name_layout, 3, 0, 1, 2)  # ✅ 한 줄에 배치
+
+
+        ### ✅ 병합 버튼 + 체크박스를 하나의 레이아웃으로 묶기
+        merge_layout = QHBoxLayout()
+
+        # 병합 버튼
+        # self.merge_button = QPushButton("병합(채워서)")
+        # self.merge_button.clicked.connect(self.on_merge_clicked)
+        # merge_layout.addWidget(self.merge_button)  
+
+        # self.merge_button_one_by_one = QPushButton("병합(따로)")
+        # self.merge_button_one_by_one.clicked.connect(self.on_merge_clicked_one_by_one)
+        # merge_layout.addWidget(self.merge_button_one_by_one)
+
         self.merge_button = QPushButton("병합")
-        self.merge_button.clicked.connect(self.on_merge_clicked)
-        layout.addWidget(self.merge_button, 3, 0, 1, 1, alignment=Qt.AlignLeft)
+        self.merge_button.clicked.connect(self.on_merge_clicked_seamless)
+        merge_layout.addWidget(self.merge_button) 
+
+
+
+        # ✅ 병합 버튼과 체크박스 사이에 SpacerItem 추가 (체크박스 밀려나는 문제 해결)
+        # merge_layout.addStretch(1)
+
+        # ✅ 체크박스를 병합 버튼과 같은 레이아웃에 추가 (고정된 위치 유지)
+        self.with_answer_checkbox = QCheckBox("정답도 같이")
+        self.with_answer_checkbox.setChecked(True) # default : True 
+        merge_layout.addWidget(self.with_answer_checkbox)  
+        
+        self.is_reset_num = QCheckBox("번호 리셋")
+        self.is_reset_num.setChecked(True) # default : True 
+        merge_layout.addWidget(self.is_reset_num) 
+
+        layout.addLayout(merge_layout, 4, 0, 1, 3)  # ✅ 병합 버튼 + 체크박스를 같은 행(row=3)에 배치
+
 
         # 다이얼로그 버튼(확인/취소)
-        self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.dialog_buttons.accepted.connect(self.on_accept)
-        self.dialog_buttons.rejected.connect(self.reject)
-        layout.addWidget(self.dialog_buttons, 3, 1, 1, 1, alignment=Qt.AlignRight)
+        # self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        # self.dialog_buttons.accepted.connect(self.on_accept)
+        # self.dialog_buttons.rejected.connect(self.reject)
+        # layout.addWidget(self.dialog_buttons, 3, 2, 1, 1, alignment=Qt.AlignRight)
     
     def create_file_checkboxes(self):
         """
@@ -354,6 +400,9 @@ class ProblemSelectDialog(QDialog):
         1) 현재 선택된 파일 확인
         2) group_docs_by_page(base_path, file_list) 함수 호출
         """
+        # 직접 적은 파일명 변수
+        output_filename = self.result_name_input.text() 
+
         self.selected_files = [
             fname for fname, cb in self.checkboxes.items() if cb.isChecked() and cb.isEnabled()
         ]
@@ -366,21 +415,105 @@ class ProblemSelectDialog(QDialog):
         # ------------------### 임시로 사용 ###------------------
         base_path = os.path.join(exe_dir, "split") # .exe 경로
         # base_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split" # .py 경로
-        
-        # group_docs_by_page 함수
-        files_list = group_docs_by_page(base_path, self.selected_files)
-        
-        # group화 된 list를 하나의 file로 병합
-        combine_all_docx(base_path, files_list)
-        
-        # full_dir = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split"
-        # combine_all_docx(full_dir, files_list)
         # ------------------### 임시로 사용 ###------------------
         
-        QMessageBox.information(self, "알림", "병합이 완료되었습니다!")
+        ### 문제 파일 병합
+        # 문제의 길이를 계산해서 페이지를 나눈 list 반환
+        files_list = group_docs_by_page(base_path, self.selected_files)
+        # group화 된 list를 하나의 file로 병합
+        combine_all_docx(base_path, files_list, output_filename, self.is_reset_num.isChecked())
+
+        ### 정답 파일 병합
+        # 정답도 같이 포함이면 선택된 파일들의 list를 기반으로 정답파일의 이름을 list화
+        include_answers = self.with_answer_checkbox.isChecked()
+        if include_answers:
+            self.selected_files_answer = [os.path.splitext(i)[0]+"_MS.docx" for i in self.selected_files]
+            # list를 하나의 file로 병합
+            combine_all_answer_docx(base_path, self.selected_files_answer, output_filename+"_MS", self.is_reset_num.isChecked())
+        
+        
+        QMessageBox.information(self, "알림", "병합 완료!")
 
         # 필요하다면 메시지 박스 등으로 알려줄 수 있음
         # QMessageBox.information(self, "알림", "병합이 완료되었습니다.")
+
+    def on_merge_clicked_one_by_one(self):
+        """
+        "병합" 버튼을 누르면,
+        1) 현재 선택된 파일 확인
+        2) group_docs_by_page(base_path, file_list) 함수 호출
+        """
+        # 직접 적은 파일명 변수
+        output_filename = self.result_name_input.text() 
+
+        # 선택된 파일명 list
+        self.selected_files = [
+            fname for fname, cb in self.checkboxes.items() if cb.isChecked() and cb.isEnabled()
+        ]
+        
+        if not self.selected_files:
+            # 선택된 파일이 없다면 경고 메시지 등을 띄울 수 있음
+            QMessageBox.warning(self, "경고", "병합할 파일이 없습니다.")
+            return
+        
+        # ------------------### 임시로 사용 ###------------------
+        base_path = os.path.join(exe_dir, "split") # .exe 경로
+        # base_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split" # .py 경로
+        # ------------------### 임시로 사용 ###------------------
+        
+        ### 문제 파일 병합
+        # 그룹화 할 필요가 없기때문에 file list를 바로 병합
+        files_list = self.selected_files
+        combine_all_docx_one_by_one(base_path, files_list, output_filename, self.is_reset_num.isChecked())
+
+        ### 정답 파일 병합
+        # 정답도 같이 포함이면 선택된 파일들의 list를 기반으로 정답파일의 이름을 list화
+        include_answers = self.with_answer_checkbox.isChecked()
+        if include_answers:
+            self.selected_files_answer = [os.path.splitext(i)[0]+"_MS.docx" for i in self.selected_files]
+            # group화 된 list를 하나의 file로 병합
+            combine_all_answer_docx(base_path, self.selected_files_answer, output_filename+"_MS", self.is_reset_num.isChecked())
+        
+        QMessageBox.information(self, "알림", "병합이 완료되었습니다!")
+
+    def on_merge_clicked_seamless(self):
+        """
+        "병합" 버튼을 누르면,
+        1) 현재 선택된 파일 확인
+        2) group_docs_by_page(base_path, file_list) 함수 호출
+        """
+        # 직접 적은 파일명 변수
+        output_filename = self.result_name_input.text() 
+
+        # 선택된 파일명 list
+        self.selected_files = [
+            fname for fname, cb in self.checkboxes.items() if cb.isChecked() and cb.isEnabled()
+        ]
+        
+        if not self.selected_files:
+            # 선택된 파일이 없다면 경고 메시지 등을 띄울 수 있음
+            QMessageBox.warning(self, "경고", "병합할 파일이 없습니다.")
+            return
+        
+        # ------------------### 임시로 사용 ###------------------
+        base_path = os.path.join(exe_dir, "split") # .exe 경로
+        # base_path = r"D:\YearDreamSchool-D\python_projects\msword_pjt\split" # .py 경로
+        # ------------------### 임시로 사용 ###------------------
+        
+        ### 문제 파일 병합
+        # 그룹화 할 필요가 없기때문에 file list를 바로 병합
+        files_list = self.selected_files
+        combine_all_docx_seamless(base_path, files_list, output_filename, self.is_reset_num.isChecked())
+
+        ### 정답 파일 병합
+        # 정답도 같이 포함이면 선택된 파일들의 list를 기반으로 정답파일의 이름을 list화
+        include_answers = self.with_answer_checkbox.isChecked()
+        if include_answers:
+            self.selected_files_answer = [os.path.splitext(i)[0]+"_MS.docx" for i in self.selected_files]
+            # group화 된 list를 하나의 file로 병합
+            combine_all_answer_docx(base_path, self.selected_files_answer, output_filename+"_MS", self.is_reset_num.isChecked())
+        
+        QMessageBox.information(self, "알림", "병합이 완료되었습니다!")
 
 
 # -------------------------------------------------------------
@@ -416,8 +549,11 @@ class MainWindow(QMainWindow):
         # (B) 문제 선택 버튼
         self.select_problem_button = QPushButton("문제 선택 병합", self)
         self.select_problem_button.setGeometry(80, 220, 140, 40)
+        ### ----------임시로 버튼확인용 주석처리----------
         # 초기에 비활성화해두고, 필터링 결과가 있을 때만 활성화
         self.select_problem_button.setEnabled(False)
+        # self.select_problem_button.setEnabled(True)
+        ### ----------임시로 버튼확인용 주석처리----------
         self.select_problem_button.clicked.connect(self.open_problem_select_dialog)
 
     def split_selected_docxs(self):
@@ -530,8 +666,10 @@ class MainWindow(QMainWindow):
         """
         문제 선택 창을 열어, 체크박스로 특정 문제를 선택할 수 있게 한다.
         """
+        ### ----------임시로 버튼확인용 주석처리----------
         if not self.filtered_files:
             return  # 필터링된 목록이 없으면 그냥 리턴
+        ### ----------임시로 버튼확인용 주석처리----------
         
         dialog = ProblemSelectDialog(self.filtered_files, self)
         result = dialog.exec_()

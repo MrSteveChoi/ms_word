@@ -105,15 +105,18 @@ def split_docx(input_path, output_dir, word_app, q_a="q"):
                 first_line_text = ""
             
             block_count += 1
+
             # "원본파일명_01.docx", "원본파일명_02.docx" 형태로 저장
             if q_a == "q":
                 new_filename = f"{'_'.join(base_filename[:-1])}_P{block_count:02d}.docx"
+                
             elif q_a == "a":
                 new_filename = f"{'_'.join(base_filename[:-2])}_P{block_count:02d}_MS.docx"
 
             ### result_file_list에 분할된 문제의 filename을 append
             result_file_list.append(new_filename)
 
+            
             save_path = os.path.join(output_dir, new_filename)
             print(f"save path : {save_path}")
             new_doc.SaveAs2(save_path, FileFormat=16)  # 16 = wdFormatXMLDocument(.docx)
